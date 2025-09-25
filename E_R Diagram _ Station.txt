@@ -1,0 +1,29 @@
+﻿Tables:
+1-10 Busses and their stops
+Price/payment
+
+
+
+
+Many-many with admin on bus schedules
+Many-many with admin on payment
+
+
+
+
+Users:
+1. Passengers 
+   * Ability to access schedules
+   * Ability to look at prices/payment
+2. Admins
+   * Change Schedules/drivers
+   * Changes routes
+3. Drivers
+   * Ability to schedule their breaks and choose the right schedule each day
+
+
+
+
+
+Notes:
+Have Arrive by that includes +5 mins out
