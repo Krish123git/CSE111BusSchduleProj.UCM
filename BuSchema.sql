@@ -5,12 +5,14 @@ CREATE TABLE route (
     status_key     INTEGER,
     FOREIGN KEY(status_key) REFERENCES route_status(status_key)
 );
+-- The table storing the bus name, id, and active status
 
 -- STOP TABLE
 CREATE TABLE stop (
     stop_key       INTEGER PRIMARY KEY,
     stop_name      TEXT NOT NULL
 );
+-- The table storing the IDs of the places in which the busses will stop + their name
 
 -- ROUTE_STOP (Many–Many between Routes and Stops + time)
 CREATE TABLE route_stop (
@@ -21,6 +23,7 @@ CREATE TABLE route_stop (
     FOREIGN KEY(route_key) REFERENCES route(route_key),
     FOREIGN KEY(stop_key)  REFERENCES stop(stop_key)
 );
+-- The table storing the individual stop + time on a route
 
 -- DRIVER TABLE
 CREATE TABLE driver (
