@@ -48,3 +48,11 @@ CREATE TABLE route_status (
     description    TEXT NOT NULL
 );
 -- Perhaps we can use 0 for inactive, and 1 for active?
+
+CREATE TABLE Passenger_Review (
+
+)
+
+-- Create payment, events/breaks, 
+
+--Events -> Have keys for events, holidays, 
