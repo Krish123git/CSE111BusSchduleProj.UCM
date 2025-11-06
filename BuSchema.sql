@@ -56,6 +56,9 @@ CREATE TABLE passenger_review (
     review_score INTEGER
 )
 
--- Create payment, events/breaks, 
 
---Events -> Have keys for events, holidays, 
+-- TODO
+-- Create payment, events/breaks, route status
+
+-- Events -> Have keys for events, holidays, weekends, etc, which define what the status is, each route we should add
+-- a portion that defines when the route will be active/inactive (i.e. if the route is down for weekends, or it's up during finals or other things)
