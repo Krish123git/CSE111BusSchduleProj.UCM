@@ -1,5 +1,5 @@
 -- ROUTE TABLE
-CREATE TABLE route (
+CREATE TABLE IF NOT EXISTS route (
     route_key      INTEGER PRIMARY KEY,
     route_name     TEXT NOT NULL,
     status_key     INTEGER,
@@ -8,14 +8,14 @@ CREATE TABLE route (
 -- The table storing the bus name, id, and active status
 
 -- STOP TABLE
-CREATE TABLE stop (
+CREATE TABLE IF NOT EXISTS stop (
     stop_key       INTEGER PRIMARY KEY,
     stop_name      TEXT NOT NULL
 );
 -- The table storing the IDs of the places in which the busses will stop + their name
 
 -- ROUTE_STOP (Many–Many between Routes and Stops + time)
-CREATE TABLE route_stop (
+CREATE TABLE IF NOT EXISTS route_stop (
     route_key      INTEGER NOT NULL,
     stop_key       INTEGER NOT NULL,
     time           TEXT NOT NULL,
@@ -26,14 +26,14 @@ CREATE TABLE route_stop (
 -- The table storing the individual stop + time on a route
 
 -- DRIVER TABLE
-CREATE TABLE driver (
+CREATE TABLE IF NOT EXISTS driver (
     driver_key     INTEGER PRIMARY KEY,
     driver_name    TEXT NOT NULL
 );
 --Just a table for the driver information
 
 -- DRIVER_ROUTE (Many–Many between Drivers and Routes)
-CREATE TABLE driver_route (
+CREATE TABLE IF NOT EXISTS driver_route (
     driver_key     INTEGER NOT NULL,
     route_key      INTEGER NOT NULL,
     PRIMARY KEY (driver_key, route_key),
@@ -43,14 +43,14 @@ CREATE TABLE driver_route (
 -- will denote which driver is on which route
 
 -- ROUTE STATUS TABLE
-CREATE TABLE route_status (
+CREATE TABLE IF NOT EXISTS route_status (
     status_key     INTEGER PRIMARY KEY,
     description    TEXT NOT NULL
 );
 -- Perhaps we can use 0 for inactive, and 1 for active?
 
 --
-CREATE TABLE passenger_review (
+CREATE TABLE IF NOT EXISTS passenger_review (
     review_id INTEGER PRIMARY KEY,
     review_text TEXT NOT NULL,
     review_score INTEGER
