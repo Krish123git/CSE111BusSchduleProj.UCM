@@ -54,11 +54,19 @@ CREATE TABLE IF NOT EXISTS passenger_review (
     review_id INTEGER PRIMARY KEY,
     review_text TEXT NOT NULL,
     review_score INTEGER
+);
+
+-- Create payment
+CREATE TABLE IF NOT EXISTS payment (
+    passenger_id INTEGER PRIMARY KEY, -- not sure but best option (like student id num. best unique key for payment?)
+    passenger_type TEXT NOT NULL,
+    route_key INTEGER,
+    cost INTEGER
 )
 
-
 -- TODO
--- Create payment, events/breaks, route status
+
+-- Create events/breaks, route status
 
 -- Events -> Have keys for events, holidays, weekends, etc, which define what the status is, each route we should add
 -- a portion that defines when the route will be active/inactive (i.e. if the route is down for weekends, or it's up during finals or other things)
