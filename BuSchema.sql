@@ -49,7 +49,7 @@ CREATE TABLE route_status (
 );
 -- Perhaps we can use 0 for inactive, and 1 for active?
 
--
+--
 CREATE TABLE passenger_review (
     review_id INTEGER PRIMARY KEY,
     review_text TEXT NOT NULL,
