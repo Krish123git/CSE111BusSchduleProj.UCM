@@ -59,7 +59,8 @@ CREATE TABLE IF NOT EXISTS passenger_review (
 -- Create payment
 CREATE TABLE IF NOT EXISTS payment (
     passenger_id INTEGER PRIMARY KEY, -- not sure but best option (like student id num. best unique key for payment?)
-    passenger_type TEXT NOT NULL,
+    passenger_type TEXT NOT NULL, -- I think the passenger type (could be an integer btw) should be the primary key, we don't need to save each
+    -- passenger, and instead just have them input the type of passenger they are (staff, student, etc.) 
     route_key INTEGER,
     cost INTEGER
 )
