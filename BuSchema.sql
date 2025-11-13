@@ -49,7 +49,7 @@ CREATE TABLE IF NOT EXISTS route_status (
 );
 -- Perhaps we can use 0 for inactive, and 1 for active?
 
---
+-- Passenger Review Storage
 CREATE TABLE IF NOT EXISTS passenger_review (
     review_id INTEGER PRIMARY KEY,
     review_text TEXT NOT NULL,

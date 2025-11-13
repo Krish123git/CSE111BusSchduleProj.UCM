@@ -5,19 +5,14 @@
 
 --Views all bus routes: (RT)
 -- 1
-SELECT 
-    r.route_key,
-    r.route_name,
-    rs.description AS status
+SELECT r.route_key, r.route_name, rs.description AS status
 FROM route r
 LEFT JOIN route_status rs
     ON r.status_key = rs.status_key;
 
 --See route times:  (RT)
 -- 2
-SELECT 
-    s.stop_name,
-    rs.time
+SELECT s.stop_name, rs.time
 FROM route_stop rs
 JOIN stop s ON rs.stop_key = s.stop_key
 WHERE rs.route_key = :route_key
@@ -44,4 +39,18 @@ WHERE description = 'ACTIVE';
 -- 6
 -- Calculate price of passenger fare given passenger type
 
+-- 7
+-- View Drivers Information
+SELECT r.route_name, d.driver_name
+FROM route r
+JOIN driver_route dr 
+    ON r.route_key = dr.route_key
+JOIN driver d 
+    ON dr.driver_key = d.driver_key
+WHERE r.route_name = ?;
+
+
+
+-- Obviously we also need to add insert statements to put the stop times into the db
+-- We have said that we may use an AI tool to extract the data from the timetable PDFs
 
