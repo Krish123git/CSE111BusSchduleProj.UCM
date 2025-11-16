@@ -10,8 +10,13 @@ FROM route r
 LEFT JOIN route_status rs
     ON r.status_key = rs.status_key;
 
+-- Mod ver of 1 for testing: worked with route table:
+SELECT r.route_key, r.route_name AS status
+FROM route r;
+
+
 --See route times:  (RT)
--- 2
+-- 2 (Works: could be made more redable during Phase 3)
 SELECT s.stop_name, rs.time
 FROM route_stop rs
 JOIN stop s ON rs.stop_key = s.stop_key
