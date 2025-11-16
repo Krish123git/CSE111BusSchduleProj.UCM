@@ -6,6 +6,7 @@ CREATE TABLE IF NOT EXISTS route (
     FOREIGN KEY(status_key) REFERENCES route_status(status_key)
 );
 -- The table storing the bus name, id, and active status
+-- DROP TABLE IF EXISTS route;
 
 -- STOP TABLE
 CREATE TABLE IF NOT EXISTS stop (
@@ -13,17 +14,18 @@ CREATE TABLE IF NOT EXISTS stop (
     stop_name      TEXT NOT NULL
 );
 -- The table storing the IDs of the places in which the busses will stop + their name
+-- DROP TABLE IF EXISTS stop;
 
 -- ROUTE_STOP (Many–Many between Routes and Stops + time)
 CREATE TABLE IF NOT EXISTS route_stop (
     route_key      INTEGER NOT NULL,
     stop_key       INTEGER NOT NULL,
-    time           TEXT NOT NULL,
-    PRIMARY KEY (route_key, stop_key), 
+    time           TEXT NOT NULL, 
     FOREIGN KEY(route_key) REFERENCES route(route_key),
     FOREIGN KEY(stop_key)  REFERENCES stop(stop_key)
 );
 -- The table storing the individual stop + time on a route
+-- DROP TABLE IF EXISTS route_stop;
 
 -- DRIVER TABLE
 CREATE TABLE IF NOT EXISTS driver (
@@ -63,7 +65,7 @@ CREATE TABLE IF NOT EXISTS payment (
     -- passenger, and instead just have them input the type of passenger they are (staff, student, etc.) 
     route_key INTEGER,
     cost INTEGER
-)
+);
 
 -- TODO
 
@@ -71,3 +73,23 @@ CREATE TABLE IF NOT EXISTS payment (
 
 -- Events -> Have keys for events, holidays, weekends, etc, which define what the status is, each route we should add
 -- a portion that defines when the route will be active/inactive (i.e. if the route is down for weekends, or it's up during finals or other things)
+
+
+
+
+-------------------------------------
+       -- Data Bulk Loading --
+-------------------------------------
+-- ALWAYS comment out after use to not cause 
+-- mess up when running the whole file.
+
+--.mode csv
+--.separator ","
+
+--.import data/route.csv route
+--.import data/stop.csv stop
+--.import data/route_stop.csv route_stop
+
+--DELETE FROM route_stop;
+--DELETE FROM stop;
+--DELETE FROM route;
