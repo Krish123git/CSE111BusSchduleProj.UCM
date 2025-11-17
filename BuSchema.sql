@@ -38,7 +38,6 @@ CREATE TABLE IF NOT EXISTS driver (
 CREATE TABLE IF NOT EXISTS driver_route (
     driver_key     INTEGER NOT NULL,
     route_key      INTEGER NOT NULL,
-    PRIMARY KEY (driver_key, route_key),
     FOREIGN KEY(driver_key) REFERENCES driver(driver_key),
     FOREIGN KEY(route_key)  REFERENCES route(route_key)
 );
@@ -56,6 +55,18 @@ CREATE TABLE IF NOT EXISTS passenger_review (
     review_id INTEGER PRIMARY KEY,
     review_text TEXT NOT NULL,
     review_score INTEGER
+);
+
+-- m-m to link drivers and routes with reviews
+CREATE TABLE IF NOT EXISTS route_driver_review (
+    route_key   INTEGER NOT NULL,
+    driver_key  INTEGER NOT NULL,
+    review_id   INTEGER NOT NULL,
+
+    -- Foreign keys
+    FOREIGN KEY(route_key) REFERENCES route(route_key),
+    FOREIGN KEY(driver_key) REFERENCES driver(driver_key),
+    FOREIGN KEY(review_id) REFERENCES passenger_review(review_id)
 );
 
 -- Create payment
@@ -89,7 +100,19 @@ CREATE TABLE IF NOT EXISTS payment (
 --.import data/route.csv route
 --.import data/stop.csv stop
 --.import data/route_stop.csv route_stop
+--.import data/route_status.csv route_status
+--.import data/driver.csv driver
+--.import data/driver_route.csv driver_route
+--.import data/passenger_review.csv passenger_review
+--.import data/route_driver_review.csv route_driver_review
 
 --DELETE FROM route_stop;
 --DELETE FROM stop;
 --DELETE FROM route;
+--DELETE FROM route_status;
+--DELETE FROM driver;
+--DELETE FROM driver_route;
+--DELETE FROM passenger_review;
+--DELETE FROM route_driver_review;
+
+-- ONLY IMPORTED DATA FROM ALL THE SCHOOL BUSSES. M1-M7 EXCLUDED AS DATA EXTRACTION WAS COMPLICATED.
