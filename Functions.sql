@@ -188,7 +188,7 @@ SELECT route_key,
        ) AS first_time
 FROM route_stop
 GROUP BY route_key;
-
+-- This and the one below technically wont work as the data isn't formatted correctly.
 
 /* ============================================================
    11. Show last stop time for each route
