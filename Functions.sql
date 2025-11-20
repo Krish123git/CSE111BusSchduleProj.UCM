@@ -194,6 +194,7 @@ GROUP BY route_key;
    ============================================================ */
 SELECT route_key, MAX(time) AS last_time
 FROM route_stop
+WHERE time != 'REQ'
 GROUP BY route_key;
 
 /* ============================================================
