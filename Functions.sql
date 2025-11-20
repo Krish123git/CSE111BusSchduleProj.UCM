@@ -69,7 +69,7 @@ WHERE description = 'ACTIVE';
 
 -- /////     SQL by itself to test if it works: /////
 
---UPDATE passenge_review
+--UPDATE passenger_review
 --SET review_score = COALESCE(:new_score, review_score),
 --    review_text  = COALESCE(:new_text,  review_text)
 --WHERE review_id = :review_id
