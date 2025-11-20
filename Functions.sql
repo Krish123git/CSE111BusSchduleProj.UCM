@@ -1,7 +1,5 @@
 --Initials can be removed later for submission if needed. Currently added for better teamwork
--- Completed: 3
--- Planned: 3(4?)
--- # more needed: 14 (13?)
+
 
 --Views all bus routes: (RT)
 -- 1
@@ -36,10 +34,15 @@ WHERE description = 'ACTIVE';
 -- Tentative addition of ability to view reviews?
 
 -- 5
--- Find the location of the bus
--- do this via getting the current time, 
--- then looking at the route, and choosing
--- the closest timed stop (rounding down)
+SELECT 
+    s.stop_name,
+    rs.time
+FROM route_stop rs
+JOIN stop s ON rs.stop_key = s.stop_key
+WHERE rs.route_key = ?
+  AND rs.time <= TIME('now')
+ORDER BY rs.time DESC
+LIMIT 1;
 
 -- 6
 -- Calculate price of passenger fare given passenger type -> done in #29
