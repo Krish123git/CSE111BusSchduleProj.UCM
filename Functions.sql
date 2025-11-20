@@ -51,6 +51,8 @@ WHERE description = 'ACTIVE';
 
 --INSERT INTO passenger_review (review_text, review_score)
 --VALUES (?, ?);
+--INSERT INTO route_driver_review (route_key, driver_key, review_id)
+--VALUES (?, ?, ?);
 
 
 -- /////     Below is a way to update reviews in python when we make backend: /////
