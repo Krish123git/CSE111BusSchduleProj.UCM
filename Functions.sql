@@ -32,6 +32,25 @@ WHERE description = 'ACTIVE';
 -- insert with text gained from front-end
 -- insert with review score
 -- Tentative addition of ability to view reviews?
+-- Possible python function below for when we do frontend:
+-- def create_review(conn, text, score):
+--    cursor = conn.cursor()
+--    cursor.execute("""
+--        INSERT INTO passenger_review (review_text, review_score)
+--        VALUES (?, ?);
+--    """, (text, score))
+--    conn.commit()
+
+--    return cursor.lastrowid   # return the new review_id
+
+--  /////    To use it use this:    //////
+-- new_id = create_review(conn, "Bus was clean and on time", 5)
+-- print("Created review with ID:", new_id)
+
+-- /////     Here is the code by itself so that it can be tested: ////
+
+--INSERT INTO passenger_review (review_text, review_score)
+--VALUES (?, ?);
 
 -- 5
 SELECT 
