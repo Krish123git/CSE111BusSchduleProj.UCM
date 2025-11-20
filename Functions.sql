@@ -76,15 +76,14 @@ WHERE description = 'ACTIVE';
 --  AND review_score = :old_score;
 
 -- 5
-SELECT 
-    s.stop_name,
-    rs.time
+SELECT s.stop_name, rs.time
 FROM route_stop rs
 JOIN stop s ON rs.stop_key = s.stop_key
 WHERE rs.route_key = ?
-  AND rs.time <= TIME('now')
-ORDER BY rs.time DESC
+  AND TIME(rs.time || ':00') <= TIME('now', 'localtime')
+ORDER BY TIME(rs.time || ':00') DESC
 LIMIT 1;
+
 
 -- 6
 -- Calculate price of passenger fare given passenger type -> done in #29
