@@ -52,6 +52,29 @@ WHERE description = 'ACTIVE';
 --INSERT INTO passenger_review (review_text, review_score)
 --VALUES (?, ?);
 
+
+-- /////     Below is a way to update reviews in python when we make backend: /////
+
+--def update_review_secure(conn, review_id, old_score, new_score=None, new_text=None):
+--    sql = """
+--        UPDATE review
+--        SET review_score = COALESCE(?, review_score),
+--            review_text  = COALESCE(?, review_text)
+--        WHERE review_id = ?
+--        AND review_score = ?
+--    """
+--    cur = conn.execute(sql, (new_score, new_text, review_id, old_score))
+--    conn.commit()
+--    return cur.rowcount
+
+-- /////     SQL by itself to test if it works: /////
+
+--UPDATE review
+--SET review_score = COALESCE(:new_score, review_score),
+--    review_text  = COALESCE(:new_text,  review_text)
+--WHERE review_id = :review_id
+--  AND review_score = :old_score;
+
 -- 5
 SELECT 
     s.stop_name,
