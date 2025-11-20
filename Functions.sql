@@ -179,9 +179,16 @@ ORDER BY r.route_key, rs.time;
 /* ============================================================
    10. Show first stop time for each route
    ============================================================ */
-SELECT route_key, MIN(time) AS first_time
+SELECT route_key,
+       MIN(
+           CASE
+               WHEN length(time) = 4 THEN '0' || time   -- "8:54" → "08:54"
+               ELSE time                               -- "10:04" stays "10:04"
+           END
+       ) AS first_time
 FROM route_stop
 GROUP BY route_key;
+
 
 /* ============================================================
    11. Show last stop time for each route
