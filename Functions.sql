@@ -1,7 +1,4 @@
---Initials can be removed later for submission if needed. Currently added for better teamwork
-
-
---Views all bus routes: (RT)
+--Views all bus routes: 
 -- 1
 SELECT r.route_key, r.route_name, rs.description AS status
 FROM route r
@@ -13,7 +10,7 @@ SELECT r.route_key, r.route_name AS status
 FROM route r;
 
 
---See route times:  (RT)
+--See route times:
 -- 2 (Works: could be made more redable during Phase 3)
 SELECT s.stop_name, rs.time
 FROM route_stop rs
@@ -21,7 +18,7 @@ JOIN stop s ON rs.stop_key = s.stop_key
 WHERE rs.route_key = :route_key
 ORDER BY rs.time;
 
---all routes that are active:  (KV)
+--all routes that are active:
 --fix based on table scchema later
 -- 3
 SELECT * FROM route_status
