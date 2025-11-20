@@ -116,3 +116,12 @@ CREATE TABLE IF NOT EXISTS payment (
 --DELETE FROM route_driver_review;
 
 -- ONLY IMPORTED DATA FROM ALL THE SCHOOL BUSSES. M1-M7 EXCLUDED AS DATA EXTRACTION WAS COMPLICATED.
+
+--Below I have an insert used only to test the "payment" part within #29 in Functions.sql:
+--INSERT INTO payment (passenger_id, passenger_type, route_key)
+--VALUES
+--    (201, 'student', 1),        -- should be free
+--    (202, 'staff',   8),        -- should cost 1.50 
+--    (203, 'public',  7),        -- should cost 1.50 
+--    (204, 'student', 7),        -- free, even if route 4 is a Loop
+--    (205, 'visitor', 2);        -- non-student but NOT a loop 

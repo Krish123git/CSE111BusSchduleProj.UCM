@@ -42,7 +42,7 @@ WHERE description = 'ACTIVE';
 -- the closest timed stop (rounding down)
 
 -- 6
--- Calculate price of passenger fare given passenger type
+-- Calculate price of passenger fare given passenger type -> done in #29
 
 -- 7
 -- View Drivers Information
@@ -332,3 +332,33 @@ JOIN passenger_review pr ON rdr.review_id = pr.review_id
 WHERE pr.review_score = 5
 GROUP BY d.driver_key, d.driver_name
 ORDER BY five_star_reviews DESC;
+
+
+-- 29. Payment:
+DROP VIEW IF EXISTS payment_view;
+
+CREATE VIEW payment_view AS
+SELECT
+    p.passenger_id,
+    p.passenger_type,
+    p.route_id,
+    CASE
+        WHEN p.passenger_type = 'student' THEN 0
+        WHEN p.passenger_type = 'staff'
+             AND p.route_id NOT IN (7, 8) THEN 0
+        ELSE 1.50
+    END AS fare
+FROM payment AS p;
+
+
+-- After Running the above, it will create a view, that will allow the use of the query below:
+
+SELECT * FROM payment_view;
+
+
+
+--Misc Stuff:
+--INSERT INTO driver (driver_key, driver_name) VALUES (16, 'Sir Vivor');
+--INSERT INTO driver (driver_key, driver_name) VALUES (17, 'Sir Prize');
+--INSERT INTO driver (driver_key, driver_name) VALUES (18, 'Sir Valance');
+--^ Just funny driver names c:
