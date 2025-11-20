@@ -391,11 +391,11 @@ CREATE VIEW payment_view AS
 SELECT
     p.passenger_id,
     p.passenger_type,
-    p.route_id,
+    p.route_key,
     CASE
         WHEN p.passenger_type = 'student' THEN 0
         WHEN p.passenger_type = 'staff'
-             AND p.route_id NOT IN (7, 8) THEN 0
+             AND p.route_key NOT IN (7, 8) THEN 0
         ELSE 1.50
     END AS fare
 FROM payment AS p;
