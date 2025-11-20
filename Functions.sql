@@ -57,7 +57,7 @@ WHERE description = 'ACTIVE';
 
 --def update_review_secure(conn, review_id, old_score, new_score=None, new_text=None):
 --    sql = """
---        UPDATE review
+--        UPDATE passenger_review
 --        SET review_score = COALESCE(?, review_score),
 --            review_text  = COALESCE(?, review_text)
 --        WHERE review_id = ?
@@ -69,7 +69,7 @@ WHERE description = 'ACTIVE';
 
 -- /////     SQL by itself to test if it works: /////
 
---UPDATE review
+--UPDATE passenge_review
 --SET review_score = COALESCE(:new_score, review_score),
 --    review_text  = COALESCE(:new_text,  review_text)
 --WHERE review_id = :review_id
