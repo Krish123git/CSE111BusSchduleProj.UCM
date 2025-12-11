@@ -4,6 +4,7 @@
 # To run it, do python -m streamlit run app.py, or if you're in python do streamlit run app.py
 import streamlit as st
 import sqlite3
+from datetime import datetime
 
 # ----------------------------------
 # CONNECT TO DATABASE
@@ -23,7 +24,7 @@ menu = st.sidebar.radio(
         "Routes & Schedule",
         "Stops",
         "Stop & Route Diagnostics",
-        "Trip Planner",     
+        "Trip Planner",
         "Drivers",
         "Driver Analytics",
         "Leave Review",
@@ -299,43 +300,35 @@ def get_worst_reviews(limit):
         FROM passenger_review
         ORDER BY review_score ASC, review_id ASC
         LIMIT ?
-    """, (limit,)).fetchall()
+    """, (limit,))
+
 
 # ----------------------------------
-# ROUTES & SCHEDULE PAGE (COMBINED)
+# ROUTES & SCHEDULE PAGE
 # ----------------------------------
-
 if menu == "Routes & Schedule":
     st.subheader("All Bus Routes (Query 1)")
-
     routes = get_all_routes()
     st.table(routes)
 
     st.markdown("---")
     st.subheader("View Route Schedule (Query 3)")
-
     route_dict = {f"{r[0]} — {r[1]}": r[0] for r in routes}
 
     col1, col2 = st.columns([1, 2])
     with col1:
-        selected_label = st.selectbox(
-            "Choose a route:",
-            list(route_dict.keys())
-        )
+        selected_label = st.selectbox("Choose a route:", list(route_dict.keys()))
         selected_route_key = route_dict[selected_label]
 
     with col2:
         st.write(f"**Schedule for Route {selected_route_key}:**")
         schedule = get_route_schedule(selected_route_key)
-        if schedule:
-            st.table(schedule)
-        else:
-            st.warning("No schedule found for this route.")
+        st.table(schedule if schedule else [])
+
 
 # ----------------------------------
 # STOPS PAGE
 # ----------------------------------
-
 elif menu == "Stops":
     st.subheader("All Stops (Query 2)")
     st.table(get_all_stops())
@@ -351,10 +344,10 @@ elif menu == "Stops":
     stops = get_stops_for_route(rk)
     st.table(stops if stops else [])
 
+
 # ----------------------------------
 # DIAGNOSTICS PAGE
 # ----------------------------------
-
 elif menu == "Stop & Route Diagnostics":
     st.subheader("Stop-Time Counts per Route (Query 5)")
     st.table(get_stop_time_counts_by_route())
@@ -370,13 +363,11 @@ elif menu == "Stop & Route Diagnostics":
 
     st.markdown("---")
     st.subheader("Duplicate Stops (Query 7)")
-    dups = find_duplicate_stops()
-    st.table(dups if dups else [])
+    st.table(find_duplicate_stops())
 
     st.markdown("---")
     st.subheader("Duplicate Route_Stop Entries (Query 8)")
-    dups_rs = find_duplicate_route_stop()
-    st.table(dups_rs if dups_rs else [])
+    st.table(find_duplicate_route_stop())
 
     st.markdown("---")
     st.subheader("Full Schedule (Query 9)")
@@ -410,10 +401,10 @@ elif menu == "Stop & Route Diagnostics":
     sk2 = stop_dict[stop_sel2]
     st.table(get_times_at_stop(sk2))
 
-# ----------------------------------
-# TRIP PLANNER (NAIVE VERSION)
-# ----------------------------------
 
+# ----------------------------------
+# TRIP PLANNER (FIXED VERSION)
+# ----------------------------------
 elif menu == "Trip Planner":
     st.subheader("Trip Planner")
 
@@ -427,79 +418,93 @@ elif menu == "Trip Planner":
     start_key = stop_dict[start_label]
     end_key = stop_dict[end_label]
 
-    # --- Direct Routes ---
-    direct_routes = conn.execute("""
-        SELECT DISTINCT r.route_key, r.route_name
-        FROM route r
-        JOIN route_stop rs1 ON r.route_key = rs1.route_key
-        JOIN route_stop rs2 ON r.route_key = rs2.route_key
-        WHERE rs1.stop_key = ? AND rs2.stop_key = ?
-        ORDER BY r.route_key
-    """, (start_key, end_key)).fetchall()
+    def parse_time(tstr):
+        try:
+            return datetime.strptime(tstr, "%H:%M").time()
+        except:
+            return None  # REQ or invalid
+
+    def next_bus_time(bus_times):
+        now = datetime.now().time()
+        # Convert all to times, skip invalid
+        valid_times = [(t, parse_time(t)) for t in bus_times if t != "REQ"]
+        if not valid_times:
+            return None
+        future_times = [(t, tt) for t, tt in valid_times if tt >= now]
+        if future_times:
+            return min(future_times, key=lambda x: x[1])
+        else:
+            # all earlier than now, pick earliest next day
+            return min(valid_times, key=lambda x: x[1])
 
     if st.button("Plan Trip"):
         st.markdown("### 🚏 Trip Results")
 
-        # First try direct route
+        # Check for direct routes
+        direct_routes = conn.execute("""
+            SELECT DISTINCT r.route_key, r.route_name
+            FROM route r
+            JOIN route_stop rs1 ON r.route_key = rs1.route_key
+            JOIN route_stop rs2 ON r.route_key = rs2.route_key
+            WHERE rs1.stop_key = ? AND rs2.stop_key = ?
+        """, (start_key, end_key)).fetchall()
+
         if direct_routes:
             rkey = direct_routes[0][0]
-            st.success(f"Direct route found: **Route {direct_routes[0][0]} — {direct_routes[0][1]}**")
-
-            times = conn.execute("""
-                SELECT stop_key, time
-                FROM route_stop
-                WHERE route_key = ? AND (stop_key = ? OR stop_key = ?)
-                ORDER BY time
-            """, (rkey, start_key, end_key)).fetchall()
-
-            st.write("**Times for this trip:**")
-            st.table(times)
-
+            rname = direct_routes[0][1]
+            # Get all times for this route at start stop
+            start_times = [row[0] for row in conn.execute("""
+                SELECT time FROM route_stop
+                WHERE route_key=? AND stop_key=?
+            """, (rkey, start_key)).fetchall()]
+            next_bus = next_bus_time(start_times)
+            if next_bus:
+                st.success(f"Direct route found: **Route {rkey} — {rname}**")
+                st.write(f"Next departure from {reverse_stop_dict[start_key]} at **{next_bus[0]}**")
+            else:
+                st.warning("Direct route exists but no upcoming buses found.")
         else:
-            st.warning("❌ No direct route — finding transfer through UTC...")
-
-            # Find UTC stop_key
-            utc_key = conn.execute("SELECT stop_key FROM stop WHERE stop_name = 'UTC'").fetchone()
-            if utc_key is None:
+            st.info("No direct route — planning transfer via UTC...")
+            # Find UTC stop
+            utc_row = conn.execute("SELECT stop_key FROM stop WHERE stop_name LIKE '%UTC%'").fetchone()
+            if utc_row is None:
                 st.error("UTC stop not found in database!")
             else:
-                utc_key = utc_key[0]
-
-                # Route from start → UTC
-                to_utc = conn.execute("""
+                utc_key = utc_row[0]
+                # Next bus from start → UTC
+                start_to_utc = conn.execute("""
                     SELECT r.route_key, r.route_name, rs.time
                     FROM route r
                     JOIN route_stop rs ON r.route_key = rs.route_key
-                    WHERE rs.stop_key = ?
-                    ORDER BY rs.time
+                    WHERE rs.stop_key=?
                 """, (utc_key,)).fetchall()
-
-                # Route from UTC → destination
-                from_utc = conn.execute("""
+                # Filter by next time after now
+                start_times = [row[2] for row in start_to_utc]
+                next_start_bus = next_bus_time(start_times)
+                # Next bus from UTC → end
+                utc_to_end = conn.execute("""
                     SELECT r.route_key, r.route_name, rs.time
                     FROM route r
                     JOIN route_stop rs ON r.route_key = rs.route_key
-                    WHERE rs.stop_key = ?
-                    ORDER BY rs.time
+                    WHERE rs.stop_key=?
                 """, (end_key,)).fetchall()
+                end_times = [row[2] for row in utc_to_end]
+                next_end_bus = next_bus_time(end_times)
 
-                if not to_utc or not from_utc:
-                    st.error("Cannot route through UTC — missing data.")
+                st.success(f"Trip requires a transfer at UTC.")
+                if next_start_bus:
+                    st.write(f"Take Route {next_start_bus[0]} from {reverse_stop_dict[start_key]} at **{next_start_bus[0]}** towards UTC")
                 else:
-                    st.success("Trip will require a transfer at **UTC**")
+                    st.warning("No upcoming buses from start to UTC found.")
+                if next_end_bus:
+                    st.write(f"Then take Route {next_end_bus[0]} from UTC to {reverse_stop_dict[end_key]}")
+                else:
+                    st.warning("No upcoming buses from UTC to destination found.")
 
-                    st.markdown("#### 🕒 Earliest bus from START → UTC")
-                    st.table(to_utc[:5])
-
-                    st.markdown("#### 🕒 Earliest bus from UTC → DESTINATION")
-                    st.table(from_utc[:5])
-
-                    st.info("Take the earliest bus to UTC, then the earliest bus from UTC to destination.")
 
 # ----------------------------------
 # DRIVERS PAGE
 # ----------------------------------
-
 elif menu == "Drivers":
     st.subheader("Drivers & Their Route Assignments")
     drivers = get_all_drivers()
@@ -510,14 +515,13 @@ elif menu == "Drivers":
             JOIN driver_route dr ON r.route_key = dr.route_key
             WHERE dr.driver_key = ?
         """, (dk,)).fetchall()
-
         route_list = ", ".join(r[0] for r in routes) if routes else "No routes assigned"
         st.write(f"**{name} (ID {dk})** — {route_list}")
+
 
 # ----------------------------------
 # DRIVER ANALYTICS
 # ----------------------------------
-
 elif menu == "Driver Analytics":
     st.subheader("Driver–Route Assignments (Query 17)")
     st.table(get_all_driver_route_assignments())
@@ -550,10 +554,10 @@ elif menu == "Driver Analytics":
     st.subheader("Drivers with Most 5-Star Reviews (Query 28)")
     st.table(get_drivers_with_most_5star())
 
+
 # ----------------------------------
 # LEAVE REVIEW
 # ----------------------------------
-
 elif menu == "Leave Review":
     st.subheader("Submit a Review")
 
@@ -574,10 +578,10 @@ elif menu == "Leave Review":
         create_review(route_key, driver_key, text, score)
         st.success("Review submitted!")
 
+
 # ----------------------------------
 # VIEW REVIEWS
 # ----------------------------------
-
 elif menu == "View Reviews":
     st.subheader("Reviews for a Route")
 
@@ -587,10 +591,10 @@ elif menu == "View Reviews":
 
     st.table(get_reviews_for_route(route_key))
 
+
 # ----------------------------------
 # REVIEW ANALYTICS
 # ----------------------------------
-
 elif menu == "Review Analytics":
     st.subheader("Low Score Reviews (Query 22)")
     route_dict = {f"{r[0]} — {r[1]}": r[0] for r in get_all_routes()}
@@ -616,10 +620,10 @@ elif menu == "Review Analytics":
     limit = st.slider("How many?", 1, 20, 5)
     st.table(get_worst_reviews(limit))
 
+
 # ----------------------------------
 # ADMIN: INSERT ROUTE STOP
 # ----------------------------------
-
 elif menu == "Admin: Insert Route Stop":
     st.subheader("Insert Route Stop")
 
