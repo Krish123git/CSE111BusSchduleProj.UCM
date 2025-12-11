@@ -11,6 +11,8 @@ import sqlite3
 conn = sqlite3.connect("BusDatabase.sqlite", check_same_thread=False)
 
 st.title("School Bus System")
+st.sidebar.write("Running file:", __file__)
+
 
 # ----------------------------------
 # SIDEBAR MENU (Split Cleanly)
@@ -21,6 +23,7 @@ menu = st.sidebar.radio(
         "Routes & Schedule",
         "Stops",
         "Stop & Route Diagnostics",
+        "Trip Planner",     
         "Drivers",
         "Driver Analytics",
         "Leave Review",
@@ -406,6 +409,92 @@ elif menu == "Stop & Route Diagnostics":
     stop_sel2 = st.selectbox("Select stop:", list(stop_dict.keys()), key="stop_time")
     sk2 = stop_dict[stop_sel2]
     st.table(get_times_at_stop(sk2))
+
+# ----------------------------------
+# TRIP PLANNER (NAIVE VERSION)
+# ----------------------------------
+
+elif menu == "Trip Planner":
+    st.subheader("Trip Planner")
+
+    stops = get_all_stops()
+    stop_dict = {f"{s[0]} — {s[1]}": s[0] for s in stops}
+    reverse_stop_dict = {s[0]: s[1] for s in stops}
+
+    start_label = st.selectbox("Starting Stop:", list(stop_dict.keys()))
+    end_label = st.selectbox("Destination Stop:", list(stop_dict.keys()))
+
+    start_key = stop_dict[start_label]
+    end_key = stop_dict[end_label]
+
+    # --- Direct Routes ---
+    direct_routes = conn.execute("""
+        SELECT DISTINCT r.route_key, r.route_name
+        FROM route r
+        JOIN route_stop rs1 ON r.route_key = rs1.route_key
+        JOIN route_stop rs2 ON r.route_key = rs2.route_key
+        WHERE rs1.stop_key = ? AND rs2.stop_key = ?
+        ORDER BY r.route_key
+    """, (start_key, end_key)).fetchall()
+
+    if st.button("Plan Trip"):
+        st.markdown("### 🚏 Trip Results")
+
+        # First try direct route
+        if direct_routes:
+            rkey = direct_routes[0][0]
+            st.success(f"Direct route found: **Route {direct_routes[0][0]} — {direct_routes[0][1]}**")
+
+            times = conn.execute("""
+                SELECT stop_key, time
+                FROM route_stop
+                WHERE route_key = ? AND (stop_key = ? OR stop_key = ?)
+                ORDER BY time
+            """, (rkey, start_key, end_key)).fetchall()
+
+            st.write("**Times for this trip:**")
+            st.table(times)
+
+        else:
+            st.warning("❌ No direct route — finding transfer through UTC...")
+
+            # Find UTC stop_key
+            utc_key = conn.execute("SELECT stop_key FROM stop WHERE stop_name = 'UTC'").fetchone()
+            if utc_key is None:
+                st.error("UTC stop not found in database!")
+            else:
+                utc_key = utc_key[0]
+
+                # Route from start → UTC
+                to_utc = conn.execute("""
+                    SELECT r.route_key, r.route_name, rs.time
+                    FROM route r
+                    JOIN route_stop rs ON r.route_key = rs.route_key
+                    WHERE rs.stop_key = ?
+                    ORDER BY rs.time
+                """, (utc_key,)).fetchall()
+
+                # Route from UTC → destination
+                from_utc = conn.execute("""
+                    SELECT r.route_key, r.route_name, rs.time
+                    FROM route r
+                    JOIN route_stop rs ON r.route_key = rs.route_key
+                    WHERE rs.stop_key = ?
+                    ORDER BY rs.time
+                """, (end_key,)).fetchall()
+
+                if not to_utc or not from_utc:
+                    st.error("Cannot route through UTC — missing data.")
+                else:
+                    st.success("Trip will require a transfer at **UTC**")
+
+                    st.markdown("#### 🕒 Earliest bus from START → UTC")
+                    st.table(to_utc[:5])
+
+                    st.markdown("#### 🕒 Earliest bus from UTC → DESTINATION")
+                    st.table(from_utc[:5])
+
+                    st.info("Take the earliest bus to UTC, then the earliest bus from UTC to destination.")
 
 # ----------------------------------
 # DRIVERS PAGE
