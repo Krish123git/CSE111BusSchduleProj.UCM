@@ -25,6 +25,7 @@ menu = st.sidebar.radio(
         "Stops",
         "Stop & Route Diagnostics",
         "Trip Planner",
+        "Current Bus Location",
         "Drivers",
         "Driver Analytics",
         "Leave Review",
@@ -69,6 +70,40 @@ def get_stop_time_counts_by_route():
         GROUP BY route_key
         ORDER BY route_key
     """).fetchall()
+
+def get_current_bus_locations():
+    """
+    Returns a list of tuples: (route_key, route_name, latest_stop_name, last_time)
+    Only considers stops with real times (ignores 'REQ'), and finds the latest stop
+    each route has passed based on the current time.
+    """
+    now = datetime.now().strftime("%H:%M")
+    routes = get_all_routes()
+    locations = []
+
+    for rk, rname in routes:
+        stops = conn.execute("""
+            SELECT s.stop_name, rs.time
+            FROM route_stop rs
+            JOIN stop s ON rs.stop_key = s.stop_key
+            WHERE rs.route_key = ? AND rs.time != 'REQ'
+            ORDER BY rs.time
+        """, (rk,)).fetchall()
+
+        latest_stop = None
+        for stop_name, time_str in stops:
+            if time_str <= now:
+                latest_stop = (stop_name, time_str)
+            else:
+                break
+
+        if latest_stop:
+            locations.append((rk, rname, latest_stop[0], latest_stop[1]))
+        else:
+            # Bus hasn't started yet
+            locations.append((rk, rname, "Not started", None))
+
+    return locations
 
 def get_routes_for_stop(stop_key):
     return conn.execute("""
@@ -501,6 +536,11 @@ elif menu == "Trip Planner":
                 else:
                     st.warning("No upcoming buses from UTC to destination found.")
 
+elif menu == "Current Bus Location":
+    st.subheader("Current Bus Locations")
+
+    locations = get_current_bus_locations()
+    st.table(locations)
 
 # ----------------------------------
 # DRIVERS PAGE
