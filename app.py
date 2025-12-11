@@ -1,6 +1,7 @@
 # This was the library that chatGPT suggests to use, it looks simple but looks nice!
 
 # If you run it on your machine, install streamlit with pip install streamlit first
+# To run it, do python -m streamlit run app.py, or if you're in python do streamlit run app.py
 import streamlit as st
 import sqlite3
 
