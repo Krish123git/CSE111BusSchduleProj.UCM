@@ -342,12 +342,12 @@ def get_worst_reviews(limit):
 # ROUTES & SCHEDULE PAGE
 # ----------------------------------
 if menu == "Routes & Schedule":
-    st.subheader("All Bus Routes (Query 1)")
+    st.subheader("All Bus Routes")
     routes = get_all_routes()
     st.table(routes)
 
     st.markdown("---")
-    st.subheader("View Route Schedule (Query 3)")
+    st.subheader("View Route Schedule")
     route_dict = {f"{r[0]} — {r[1]}": r[0] for r in routes}
 
     col1, col2 = st.columns([1, 2])
@@ -365,11 +365,11 @@ if menu == "Routes & Schedule":
 # STOPS PAGE
 # ----------------------------------
 elif menu == "Stops":
-    st.subheader("All Stops (Query 2)")
+    st.subheader("All Stops")
     st.table(get_all_stops())
 
     st.markdown("---")
-    st.subheader("Stops for a Specific Route (Query 4)")
+    st.subheader("Stops for a Specific Route")
     all_routes = get_all_routes()
     route_dict = {f"{r[0]} — {r[1]}": r[0] for r in all_routes}
 
@@ -384,11 +384,11 @@ elif menu == "Stops":
 # DIAGNOSTICS PAGE
 # ----------------------------------
 elif menu == "Stop & Route Diagnostics":
-    st.subheader("Stop-Time Counts per Route (Query 5)")
+    st.subheader("Stop-Time Counts per Route")
     st.table(get_stop_time_counts_by_route())
 
     st.markdown("---")
-    st.subheader("Routes that Serve a Given Stop (Query 6)")
+    st.subheader("Routes that Serve a Given Stop")
     stop_list = get_all_stops()
     stop_dict = {f"{s[0]} — {s[1]}": s[0] for s in stop_list}
     stop_sel = st.selectbox("Select a stop:", list(stop_dict.keys()))
@@ -397,19 +397,19 @@ elif menu == "Stop & Route Diagnostics":
     st.table(get_routes_for_stop(stop_key))
 
     st.markdown("---")
-    st.subheader("Duplicate Stops (Query 7)")
+    st.subheader("Duplicate Stops")
     st.table(find_duplicate_stops())
 
     st.markdown("---")
-    st.subheader("Duplicate Route_Stop Entries (Query 8)")
+    st.subheader("Duplicate Route_Stop Entries")
     st.table(find_duplicate_route_stop())
 
     st.markdown("---")
-    st.subheader("Full Schedule (Query 9)")
+    st.subheader("Full Schedule")
     st.table(get_full_schedule())
 
     st.markdown("---")
-    st.subheader("First/Last Times per Route (Queries 10 & 11)")
+    st.subheader("First/Last Times per Route")
     col1, col2 = st.columns(2)
     with col1:
         st.write("First Times")
@@ -419,19 +419,19 @@ elif menu == "Stop & Route Diagnostics":
         st.table(get_last_time_per_route())
 
     st.markdown("---")
-    st.subheader("Unused Stops (Query 12)")
+    st.subheader("Unused Stops")
     st.table(get_unused_stops())
 
     st.markdown("---")
-    st.subheader("Routes Without Stops (Query 13)")
+    st.subheader("Routes Without Stops")
     st.table(get_routes_without_stops())
 
     st.markdown("---")
-    st.subheader("Routes Serving Each Stop (Query 14)")
+    st.subheader("Routes Serving Each Stop")
     st.table(get_routes_serving_each_stop())
 
     st.markdown("---")
-    st.subheader("Times at a Stop (Query 15)")
+    st.subheader("Times at a Stop")
     stop_sel2 = st.selectbox("Select stop:", list(stop_dict.keys()), key="stop_time")
     sk2 = stop_dict[stop_sel2]
     st.table(get_times_at_stop(sk2))
@@ -563,19 +563,19 @@ elif menu == "Drivers":
 # DRIVER ANALYTICS
 # ----------------------------------
 elif menu == "Driver Analytics":
-    st.subheader("Driver–Route Assignments (Query 17)")
+    st.subheader("Driver–Route Assignments")
     st.table(get_all_driver_route_assignments())
 
     st.markdown("---")
-    st.subheader("Drivers With No Routes (Query 18)")
+    st.subheader("Drivers With No Routes")
     st.table(get_drivers_without_routes())
 
     st.markdown("---")
-    st.subheader("Route → Driver Assignments (Query 19)")
+    st.subheader("Route → Driver Assignments")
     st.table(get_route_driver_assignments())
 
     st.markdown("---")
-    st.subheader("Routes a Driver Has Reviews For (Query 20)")
+    st.subheader("Routes a Driver Has Reviews For")
     all_drivers = get_all_drivers()
     driver_dict = {f"{d[0]} — {d[1]}": d[0] for d in all_drivers}
     sel = st.selectbox("Choose a driver:", list(driver_dict.keys()))
@@ -583,15 +583,15 @@ elif menu == "Driver Analytics":
     st.table(get_routes_with_reviews_for_driver(dk))
 
     st.markdown("---")
-    st.subheader("Best Driver by Average Score (Query 21)")
+    st.subheader("Best Driver by Average Score")
     st.table([get_best_driver_by_avg_score()])
 
     st.markdown("---")
-    st.subheader("Drivers With No Reviews (Query 24)")
+    st.subheader("Drivers With No Reviews")
     st.table(get_drivers_with_no_reviews())
 
     st.markdown("---")
-    st.subheader("Drivers with Most 5-Star Reviews (Query 28)")
+    st.subheader("Drivers with Most 5-Star Reviews")
     st.table(get_drivers_with_most_5star())
 
 
@@ -636,7 +636,7 @@ elif menu == "View Reviews":
 # REVIEW ANALYTICS
 # ----------------------------------
 elif menu == "Review Analytics":
-    st.subheader("Low Score Reviews (Query 22)")
+    st.subheader("Low Score Reviews")
     route_dict = {f"{r[0]} — {r[1]}": r[0] for r in get_all_routes()}
     rlabel = st.selectbox("Select route:", list(route_dict.keys()))
     route_key = route_dict[rlabel]
@@ -644,19 +644,19 @@ elif menu == "Review Analytics":
     st.table(get_low_score_reviews_for_route(route_key, threshold))
 
     st.markdown("---")
-    st.subheader("Review Counts (Query 23)")
+    st.subheader("Review Counts")
     st.table(count_reviews_per_route())
 
     st.markdown("---")
-    st.subheader("Poor Routes (Query 25)")
+    st.subheader("Poor Routes")
     st.table(get_poor_routes(3))
 
     st.markdown("---")
-    st.subheader("Best Review per Route (Query 26)")
+    st.subheader("Best Review per Route")
     st.table(get_best_review_per_route())
 
     st.markdown("---")
-    st.subheader("Worst Reviews (Query 27)")
+    st.subheader("Worst Reviews")
     limit = st.slider("How many?", 1, 20, 5)
     st.table(get_worst_reviews(limit))
 
