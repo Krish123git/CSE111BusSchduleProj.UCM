@@ -1,23 +1,32 @@
 # This was the library that chatGPT suggests to use, it looks simple but looks nice!
 
 # If you run it on your machine, install streamlit with pip install streamlit first
+# To run it, do python -m streamlit run app.py, or if you're in python do streamlit run app.py
 import streamlit as st
 import sqlite3
+from datetime import datetime
 
-
-# Connect to SQLite database
+# ----------------------------------
+# CONNECT TO DATABASE
+# ----------------------------------
 conn = sqlite3.connect("BusDatabase.sqlite", check_same_thread=False)
 
 st.title("School Bus System")
+st.sidebar.write("Running file:", __file__)
 
-menu = st.sidebar.selectbox(
+
+# ----------------------------------
+# SIDEBAR MENU (Split Cleanly)
+# ----------------------------------
+menu = st.sidebar.radio(
     "Menu",
     [
-        "View Routes",
-        "Route Schedule",
-        "View Stops",
+        "Routes & Schedule",
+        "Stops",
         "Stop & Route Diagnostics",
-        "View Drivers",
+        "Trip Planner",
+        "Current Bus Location",
+        "Drivers",
         "Driver Analytics",
         "Leave Review",
         "View Reviews",
@@ -26,7 +35,10 @@ menu = st.sidebar.selectbox(
     ],
 )
 
-# ---------- Helper Functions ----------
+# ----------------------------------
+# HELPER FUNCTIONS
+# ----------------------------------
+
 def get_all_routes():
     return conn.execute("SELECT route_key, route_name FROM route").fetchall()
 
@@ -38,6 +50,157 @@ def get_route_schedule(route_key):
         WHERE rs.route_key = ?
         ORDER BY rs.time
     """, (route_key,)).fetchall()
+
+def get_all_stops():
+    return conn.execute("SELECT stop_key, stop_name FROM stop ORDER BY stop_key").fetchall()
+
+def get_stops_for_route(route_key):
+    return conn.execute("""
+        SELECT DISTINCT s.stop_name
+        FROM route_stop rs
+        JOIN stop s ON rs.stop_key = s.stop_key
+        WHERE rs.route_key = ?
+        ORDER BY rs.stop_key
+    """, (route_key,)).fetchall()
+
+def get_stop_time_counts_by_route():
+    return conn.execute("""
+        SELECT route_key, COUNT(*) AS total_times
+        FROM route_stop
+        GROUP BY route_key
+        ORDER BY route_key
+    """).fetchall()
+
+def get_current_bus_locations():
+    """
+    Returns a list of tuples: (route_key, route_name, latest_stop_name, last_time)
+    Only considers stops with real times (ignores 'REQ'), and finds the latest stop
+    each route has passed based on the current time.
+    """
+    now = datetime.now().strftime("%H:%M")
+    routes = get_all_routes()
+    locations = []
+
+    for rk, rname in routes:
+        stops = conn.execute("""
+            SELECT s.stop_name, rs.time
+            FROM route_stop rs
+            JOIN stop s ON rs.stop_key = s.stop_key
+            WHERE rs.route_key = ? AND rs.time != 'REQ'
+            ORDER BY rs.time
+        """, (rk,)).fetchall()
+
+        latest_stop = None
+        for stop_name, time_str in stops:
+            if time_str <= now:
+                latest_stop = (stop_name, time_str)
+            else:
+                break
+
+        if latest_stop:
+            locations.append((rk, rname, latest_stop[0], latest_stop[1]))
+        else:
+            # Bus hasn't started yet
+            locations.append((rk, rname, "Not started", None))
+
+    return locations
+
+def get_routes_for_stop(stop_key):
+    return conn.execute("""
+        SELECT r.route_name, rs.time
+        FROM route_stop rs
+        JOIN route r ON r.route_key = rs.route_key
+        WHERE rs.stop_key = ?
+        ORDER BY rs.time
+    """, (stop_key,)).fetchall()
+
+def find_duplicate_stops():
+    return conn.execute("""
+        SELECT stop_key, stop_name, COUNT(*) AS count
+        FROM stop
+        GROUP BY stop_key, stop_name
+        HAVING COUNT(*) > 1
+    """).fetchall()
+
+def find_duplicate_route_stop():
+    return conn.execute("""
+        SELECT route_key, stop_key, time, COUNT(*) AS count
+        FROM route_stop
+        GROUP BY route_key, stop_key, time
+        HAVING COUNT(*) > 1
+    """).fetchall()
+
+def get_full_schedule():
+    return conn.execute("""
+        SELECT r.route_name, s.stop_name, rs.time
+        FROM route_stop rs
+        JOIN stop s ON rs.stop_key = s.stop_key
+        JOIN route r ON r.route_key = rs.route_key
+        ORDER BY r.route_key, rs.time
+    """).fetchall()
+
+def get_first_time_per_route():
+    return conn.execute("""
+        SELECT route_key, MIN(time)
+        FROM route_stop
+        WHERE time != 'REQ'
+        GROUP BY route_key
+        ORDER BY route_key
+    """).fetchall()
+
+def get_last_time_per_route():
+    return conn.execute("""
+        SELECT route_key, MAX(time)
+        FROM route_stop
+        WHERE time != 'REQ'
+        GROUP BY route_key
+        ORDER BY route_key
+    """).fetchall()
+
+def get_unused_stops():
+    return conn.execute("""
+        SELECT s.stop_key, s.stop_name
+        FROM stop s
+        LEFT JOIN route_stop rs ON s.stop_key = rs.stop_key
+        WHERE rs.stop_key IS NULL
+        ORDER BY s.stop_key
+    """).fetchall()
+
+def get_routes_without_stops():
+    return conn.execute("""
+        SELECT r.route_key, r.route_name
+        FROM route r
+        LEFT JOIN route_stop rs ON r.route_key = rs.route_key
+        WHERE rs.route_key IS NULL
+        ORDER BY r.route_key
+    """).fetchall()
+
+def get_routes_serving_each_stop():
+    return conn.execute("""
+        SELECT s.stop_name, COUNT(DISTINCT rs.route_key) AS routes_serving
+        FROM route_stop rs
+        JOIN stop s ON rs.stop_key = s.stop_key
+        GROUP BY s.stop_key
+        ORDER BY routes_serving DESC, s.stop_name
+    """).fetchall()
+
+def get_times_at_stop(stop_key):
+    return conn.execute("""
+        SELECT r.route_name, rs.time
+        FROM route_stop rs
+        JOIN route r ON rs.route_key = r.route_key
+        WHERE rs.stop_key = ?
+        ORDER BY rs.time
+    """, (stop_key,)).fetchall()
+
+def insert_route_stop(route_key, stop_key, time_str):
+    cur = conn.cursor()
+    cur.execute(
+        "INSERT INTO route_stop (route_key, stop_key, time) VALUES (?, ?, ?)",
+        (route_key, stop_key, time_str)
+    )
+    conn.commit()
+    return cur.rowcount
 
 def get_all_drivers():
     return conn.execute("SELECT driver_key, driver_name FROM driver").fetchall()
@@ -52,7 +215,7 @@ def create_review(route_key, driver_key, text, score):
     return review_id
 
 def get_reviews_for_route(route_key):
-    return conn.execute("""A
+    return conn.execute("""
         SELECT pr.review_id, pr.review_score, pr.review_text, d.driver_name
         FROM route_driver_review rdr
         JOIN passenger_review pr ON rdr.review_id = pr.review_id
@@ -61,341 +224,98 @@ def get_reviews_for_route(route_key):
         ORDER BY pr.review_score DESC
     """, (route_key,)).fetchall()
 
-#--------------------------------------------------
-# 2. Get all stops
-def get_all_stops():
-    """Query 2: Get all stops."""
-    return conn.execute("SELECT stop_key, stop_name FROM stop ORDER BY stop_key").fetchall()
-
-
-# 4. Get all stops in correct order for a route (distinct list)
-def get_stops_for_route(route_key: int):
-    """Query 4: Distinct ordered list of stops for a route."""
-    return conn.execute(
-        """
-        SELECT DISTINCT s.stop_name
-        FROM route_stop rs
-        JOIN stop s ON rs.stop_key = s.stop_key
-        WHERE rs.route_key = ?
-        ORDER BY rs.stop_key
-        """,
-        (route_key,),
-    ).fetchall()
-
-
-# 5. Count how many stop-times exist per route
-def get_stop_time_counts_by_route():
-    """Query 5: Count how many stop-times exist per route."""
-    return conn.execute(
-        """
-        SELECT route_key, COUNT(*) AS total_times
-        FROM route_stop
-        GROUP BY route_key
-        ORDER BY route_key
-        """
-    ).fetchall()
-
-
-# 6. List all routes that service a specific stop
-def get_routes_for_stop(stop_key: int):
-    """Query 6: List all routes that service a specific stop."""
-    return conn.execute(
-        """
-        SELECT r.route_name, rs.time
-        FROM route_stop rs
-        JOIN route r ON r.route_key = rs.route_key
-        WHERE rs.stop_key = ?
-        ORDER BY rs.time
-        """,
-        (stop_key,),
-    ).fetchall()
-
-
-# 7. Find duplicate stop entries
-def find_duplicate_stops():
-    """Query 7: Find duplicate stop entries (should be none)."""
-    return conn.execute(
-        """
-        SELECT stop_key, stop_name, COUNT(*) AS count
-        FROM stop
-        GROUP BY stop_key, stop_name
-        HAVING COUNT(*) > 1
-        """
-    ).fetchall()
-
-
-# 8. Find duplicate route_stop entries
-def find_duplicate_route_stop():
-    """Query 8: Find duplicate route_stop entries."""
-    return conn.execute(
-        """
-        SELECT route_key, stop_key, time, COUNT(*) AS count
-        FROM route_stop
-        GROUP BY route_key, stop_key, time
-        HAVING COUNT(*) > 1
-        """
-    ).fetchall()
-
-
-# 9. View full schedule for ALL routes
-def get_full_schedule():
-    """Query 9: View full schedule for all routes, ordered neatly."""
-    return conn.execute(
-        """
-        SELECT r.route_name, s.stop_name, rs.time
-        FROM route_stop rs
-        JOIN stop s ON rs.stop_key = s.stop_key
-        JOIN route r ON r.route_key = rs.route_key
-        ORDER BY r.route_key, rs.time
-        """
-    ).fetchall()
-
-
-# 10. Show first stop time for each route
-def get_first_time_per_route():
-    """
-    Query 10: Show first stop time for each route.
-    Assumes times are now in 24-hour HH:MM format and 'REQ' was left as-is.
-    """
-    return conn.execute(
-        """
-        SELECT route_key, MIN(time) AS first_time
-        FROM route_stop
-        WHERE time != 'REQ'
-        GROUP BY route_key
-        ORDER BY route_key
-        """
-    ).fetchall()
-
-
-# 11. Show last stop time for each route
-def get_last_time_per_route():
-    """Query 11: Show last stop time for each route."""
-    return conn.execute(
-        """
-        SELECT route_key, MAX(time) AS last_time
-        FROM route_stop
-        WHERE time != 'REQ'
-        GROUP BY route_key
-        ORDER BY route_key
-        """
-    ).fetchall()
-
-
-# 12. Check stops that are never used by any route
-def get_unused_stops():
-    """Query 12: Stops that are never used in route_stop."""
-    return conn.execute(
-        """
-        SELECT s.stop_key, s.stop_name
-        FROM stop s
-        LEFT JOIN route_stop rs ON s.stop_key = rs.stop_key
-        WHERE rs.stop_key IS NULL
-        ORDER BY s.stop_key
-        """
-    ).fetchall()
-
-
-# 13. Check routes that have no stops
-def get_routes_without_stops():
-    """Query 13: Routes that have no stops."""
-    return conn.execute(
-        """
-        SELECT r.route_key, r.route_name
-        FROM route r
-        LEFT JOIN route_stop rs ON r.route_key = rs.route_key
-        WHERE rs.route_key IS NULL
-        ORDER BY r.route_key
-        """
-    ).fetchall()
-
-
-# 14. List stops and how many routes serve them
-def get_routes_serving_each_stop():
-    """Query 14: List stops and how many routes serve them."""
-    return conn.execute(
-        """
-        SELECT s.stop_name, COUNT(DISTINCT rs.route_key) AS routes_serving
-        FROM route_stop rs
-        JOIN stop s ON rs.stop_key = s.stop_key
-        GROUP BY s.stop_key
-        ORDER BY routes_serving DESC, s.stop_name
-        """
-    ).fetchall()
-
-
-# 15. Show all times at a stop throughout the day
-def get_times_at_stop(stop_key: int):
-    """Query 15: Show all times at a stop throughout the day."""
-    return conn.execute(
-        """
-        SELECT r.route_name, rs.time
-        FROM route_stop rs
-        JOIN route r ON rs.route_key = r.route_key
-        WHERE rs.stop_key = ?
-        ORDER BY rs.time
-        """,
-        (stop_key,),
-    ).fetchall()
-
-
-# 16. Insert a new route_stop time
-def insert_route_stop(route_key: int, stop_key: int, time_str: str):
-    """Query 16: Insert a new route_stop time."""
-    cur = conn.cursor()
-    cur.execute(
-        "INSERT INTO route_stop (route_key, stop_key, time) VALUES (?, ?, ?)",
-        (route_key, stop_key, time_str),
-    )
-    conn.commit()
-    return cur.rowcount
-
-
-# 17. List all drivers and the routes they are assigned to
 def get_all_driver_route_assignments():
-    """Query 17: List all drivers and the routes they are assigned to."""
-    return conn.execute(
-        """
+    return conn.execute("""
         SELECT d.driver_name, dr.route_key
         FROM driver d
         LEFT JOIN driver_route dr ON d.driver_key = dr.driver_key
         ORDER BY d.driver_key, dr.route_key
-        """
-    ).fetchall()
+    """).fetchall()
 
-
-# 18. Show all drivers who have NOT been assigned to any route
 def get_drivers_without_routes():
-    """Query 18: Drivers with no route assignment."""
-    return conn.execute(
-        """
+    return conn.execute("""
         SELECT d.driver_key, d.driver_name
         FROM driver d
         LEFT JOIN driver_route dr ON d.driver_key = dr.driver_key
         WHERE dr.route_key IS NULL
         ORDER BY d.driver_key
-        """
-    ).fetchall()
+    """).fetchall()
 
-
-# 19. For each route, show the assigned driver
 def get_route_driver_assignments():
-    """Query 19: For each route, show the assigned driver."""
-    return conn.execute(
-        """
+    return conn.execute("""
         SELECT r.route_key, r.route_name, d.driver_name
         FROM route r
         LEFT JOIN driver_route dr ON r.route_key = dr.route_key
         LEFT JOIN driver d ON d.driver_key = dr.driver_key
         ORDER BY r.route_key
-        """
-    ).fetchall()
+    """).fetchall()
 
-
-# 20. Get all routes a driver has reviews for
-def get_routes_with_reviews_for_driver(driver_key: int):
-    """Query 20: Get all routes a driver has reviews for."""
-    return conn.execute(
-        """
+def get_routes_with_reviews_for_driver(driver_key):
+    return conn.execute("""
         SELECT DISTINCT rdr.route_key
         FROM route_driver_review rdr
         WHERE rdr.driver_key = ?
-        """,
-        (driver_key,),
-    ).fetchall()
+    """, (driver_key,)).fetchall()
 
-
-# 21. Find which driver has the highest-rated average score
 def get_best_driver_by_avg_score():
-    """Query 21: Driver with the highest-rated average score."""
-    return conn.execute(
-        """
-        SELECT 
-            d.driver_key,
-            d.driver_name,
-            AVG(pr.review_score) AS avg_score
+    return conn.execute("""
+        SELECT d.driver_key, d.driver_name, AVG(pr.review_score)
         FROM driver d
         JOIN route_driver_review rdr ON d.driver_key = rdr.driver_key
         JOIN passenger_review pr ON rdr.review_id = pr.review_id
-        GROUP BY d.driver_key, d.driver_name
-        ORDER BY avg_score DESC
+        GROUP BY d.driver_key
+        ORDER BY AVG(pr.review_score) DESC
         LIMIT 1
-        """
-    ).fetchone()
+    """).fetchone()
 
-
-# 22. All low-score reviews (score <= 2) for a route
-def get_low_score_reviews_for_route(route_key: int, threshold: int = 2):
-    """Query 22: Reviews for a route with score <= threshold."""
-    return conn.execute(
-        """
-        SELECT 
-            pr.review_id,
-            pr.review_score,
-            pr.review_text
-        FROM route_driver_review rdr
-        JOIN passenger_review pr ON rdr.review_id = pr.review_id
-        WHERE rdr.route_key = ?
-          AND pr.review_score <= ?
-        """,
-        (route_key, threshold),
-    ).fetchall()
-
-
-# 23. Count reviews per route
-def count_reviews_per_route():
-    """Query 23: Count reviews per route."""
-    return conn.execute(
-        """
-        SELECT 
-            rdr.route_key,
-            COUNT(rdr.review_id) AS review_count
-        FROM route_driver_review rdr
-        GROUP BY rdr.route_key
-        ORDER BY review_count DESC
-        """
-    ).fetchall()
-
-
-# 24. List drivers with no reviews
 def get_drivers_with_no_reviews():
-    """Query 24: Drivers with no reviews."""
-    return conn.execute(
-        """
+    return conn.execute("""
         SELECT d.driver_key, d.driver_name
         FROM driver d
         LEFT JOIN route_driver_review rdr ON d.driver_key = rdr.driver_key
         WHERE rdr.review_id IS NULL
         ORDER BY d.driver_key
-        """
-    ).fetchall()
+    """).fetchall()
 
+def get_drivers_with_most_5star():
+    return conn.execute("""
+        SELECT d.driver_key, d.driver_name, COUNT(pr.review_id)
+        FROM driver d
+        JOIN route_driver_review rdr ON d.driver_key = rdr.driver_key
+        JOIN passenger_review pr ON rdr.review_id = pr.review_id
+        WHERE pr.review_score = 5
+        GROUP BY d.driver_key
+        ORDER BY COUNT(pr.review_id) DESC
+    """).fetchall()
 
-# 25. Get routes with an average review score below 3
-def get_poor_routes(avg_threshold: int = 3):
-    """Query 25: Routes with average review score below threshold."""
-    return conn.execute(
-        """
-        SELECT 
-            r.route_key,
-            r.route_name,
-            AVG(pr.review_score) AS avg_score
+def get_low_score_reviews_for_route(route_key, threshold):
+    return conn.execute("""
+        SELECT pr.review_id, pr.review_score, pr.review_text
+        FROM route_driver_review rdr
+        JOIN passenger_review pr ON rdr.review_id = pr.review_id
+        WHERE rdr.route_key = ? AND pr.review_score <= ?
+    """, (route_key, threshold)).fetchall()
+
+def count_reviews_per_route():
+    return conn.execute("""
+        SELECT route_key, COUNT(review_id)
+        FROM route_driver_review
+        GROUP BY route_key
+        ORDER BY COUNT(review_id) DESC
+    """).fetchall()
+
+def get_poor_routes(avg_threshold):
+    return conn.execute("""
+        SELECT r.route_key, r.route_name, AVG(pr.review_score)
         FROM route r
         JOIN route_driver_review rdr ON r.route_key = rdr.route_key
         JOIN passenger_review pr ON rdr.review_id = pr.review_id
-        GROUP BY r.route_key, r.route_name
-        HAVING avg_score < ?
-        ORDER BY avg_score ASC
-        """,
-        (avg_threshold,),
-    ).fetchall()
+        GROUP BY r.route_key
+        HAVING AVG(pr.review_score) < ?
+    """, (avg_threshold,)).fetchall()
 
-
-# 26. Get the highest-rated review for each route
 def get_best_review_per_route():
-    """Query 26: Highest-rated review for each route."""
-    return conn.execute(
-        """
+    return conn.execute("""
         SELECT r.route_key, r.route_name, pr.review_id, pr.review_score, pr.review_text
         FROM route r
         JOIN route_driver_review rdr ON r.route_key = rdr.route_key
@@ -406,305 +326,359 @@ def get_best_review_per_route():
             JOIN passenger_review pr2 ON rdr2.review_id = pr2.review_id
             WHERE rdr2.route_key = r.route_key
         )
-        ORDER BY r.route_key, pr.review_id
-        """
-    ).fetchall()
+        ORDER BY r.route_key
+    """).fetchall()
 
-
-# 27. Get the worst 5 reviews systemwide
-def get_worst_reviews(limit: int = 5):
-    """Query 27: Worst N reviews systemwide."""
-    return conn.execute(
-        """
+def get_worst_reviews(limit):
+    return conn.execute("""
         SELECT review_id, review_score, review_text
         FROM passenger_review
         ORDER BY review_score ASC, review_id ASC
         LIMIT ?
-        """,
-        (limit,),
-    ).fetchall()
+    """, (limit,))
 
 
-# 28. See which driver handled the most 5-star reviews
-def get_drivers_with_most_5star():
-    """Query 28: Drivers with counts of 5-star reviews."""
-    return conn.execute(
-        """
-        SELECT 
-            d.driver_key,
-            d.driver_name,
-            COUNT(pr.review_id) AS five_star_reviews
-        FROM driver d
-        JOIN route_driver_review rdr ON d.driver_key = rdr.driver_key
-        JOIN passenger_review pr ON rdr.review_id = pr.review_id
-        WHERE pr.review_score = 5
-        GROUP BY d.driver_key, d.driver_name
-        ORDER BY five_star_reviews DESC
-        """
-    ).fetchall()
-
-# ---------- Menu ----------
-if menu == "View Routes":
-    st.subheader("All Bus Routes (Query 1)")
+# ----------------------------------
+# ROUTES & SCHEDULE PAGE
+# ----------------------------------
+if menu == "Routes & Schedule":
+    st.subheader("All Bus Routes")
     routes = get_all_routes()
     st.table(routes)
 
-elif menu == "Route Schedule":
-    st.subheader("Route Schedule (Query 3)")
-    route_key = st.number_input("Enter Route ID", min_value=1, step=1)
-    if st.button("Show Schedule"):
-        schedule = get_route_schedule(route_key)
-        if schedule:
-            st.table(schedule)
-        else:
-            st.warning("No schedule found for this route.")
+    st.markdown("---")
+    st.subheader("View Route Schedule")
+    route_dict = {f"{r[0]} — {r[1]}": r[0] for r in routes}
 
-elif menu == "View Stops":
-    st.subheader("All Stops (Query 2)")
-    stops = get_all_stops()
-    st.table(stops)
+    col1, col2 = st.columns([1, 2])
+    with col1:
+        selected_label = st.selectbox("Choose a route:", list(route_dict.keys()))
+        selected_route_key = route_dict[selected_label]
+
+    with col2:
+        st.write(f"**Schedule for Route {selected_route_key}:**")
+        schedule = get_route_schedule(selected_route_key)
+        st.table(schedule if schedule else [])
+
+
+# ----------------------------------
+# STOPS PAGE
+# ----------------------------------
+elif menu == "Stops":
+    st.subheader("All Stops")
+    st.table(get_all_stops())
 
     st.markdown("---")
-    st.subheader("Stops for a Specific Route (Query 4)")
-    route_key = st.number_input("Route ID for Stop List", min_value=1, step=1, key="route_for_stops")
-    if st.button("Show Stops for Route"):
-        route_stops = get_stops_for_route(route_key)
-        if route_stops:
-            st.table(route_stops)
-        else:
-            st.info("No stops found for this route.")
+    st.subheader("Stops for a Specific Route")
+    all_routes = get_all_routes()
+    route_dict = {f"{r[0]} — {r[1]}": r[0] for r in all_routes}
 
+    selected_label = st.selectbox("Choose a route:", list(route_dict.keys()))
+    rk = route_dict[selected_label]
+
+    stops = get_stops_for_route(rk)
+    st.table(stops if stops else [])
+
+
+# ----------------------------------
+# DIAGNOSTICS PAGE
+# ----------------------------------
 elif menu == "Stop & Route Diagnostics":
-    st.subheader("Stop & Route Diagnostics")
-
-    st.markdown("### Stop-Time Counts per Route (Query 5)")
+    st.subheader("Stop-Time Counts per Route")
     st.table(get_stop_time_counts_by_route())
 
     st.markdown("---")
-    st.markdown("### Routes that Serve a Given Stop (Query 6)")
-    stop_key = st.number_input("Stop ID", min_value=1, step=1, key="stop_for_routes")
-    if st.button("Show Routes for This Stop"):
-        routes_for_stop = get_routes_for_stop(stop_key)
-        if routes_for_stop:
-            st.table(routes_for_stop)
-        else:
-            st.info("No routes found for that stop.")
+    st.subheader("Routes that Serve a Given Stop")
+    stop_list = get_all_stops()
+    stop_dict = {f"{s[0]} — {s[1]}": s[0] for s in stop_list}
+    stop_sel = st.selectbox("Select a stop:", list(stop_dict.keys()))
+    stop_key = stop_dict[stop_sel]
+
+    st.table(get_routes_for_stop(stop_key))
 
     st.markdown("---")
-    st.markdown("### Duplicate Stops (Query 7)")
-    dup_stops = find_duplicate_stops()
-    if dup_stops:
-        st.error("Duplicate stops found:")
-        st.table(dup_stops)
-    else:
-        st.success("No duplicate stops found.")
+    st.subheader("Duplicate Stops")
+    st.table(find_duplicate_stops())
 
     st.markdown("---")
-    st.markdown("### Duplicate Route_Stop Entries (Query 8)")
-    dup_rs = find_duplicate_route_stop()
-    if dup_rs:
-        st.error("Duplicate route_stop entries found:")
-        st.table(dup_rs)
-    else:
-        st.success("No duplicate route_stop entries found.")
+    st.subheader("Duplicate Route_Stop Entries")
+    st.table(find_duplicate_route_stop())
 
     st.markdown("---")
-    st.markdown("### Full Schedule for All Routes (Query 9)")
-    full_sched = get_full_schedule()
-    st.table(full_sched)
+    st.subheader("Full Schedule")
+    st.table(get_full_schedule())
 
     st.markdown("---")
-    st.markdown("### First and Last Times per Route (Queries 10 & 11)")
+    st.subheader("First/Last Times per Route")
     col1, col2 = st.columns(2)
     with col1:
-        st.write("First time per route")
+        st.write("First Times")
         st.table(get_first_time_per_route())
     with col2:
-        st.write("Last time per route")
+        st.write("Last Times")
         st.table(get_last_time_per_route())
 
     st.markdown("---")
-    st.markdown("### Unused Stops (Query 12)")
-    unused = get_unused_stops()
-    if unused:
-        st.warning("These stops are not used by any route:")
-        st.table(unused)
-    else:
-        st.success("Every stop is used by at least one route.")
+    st.subheader("Unused Stops")
+    st.table(get_unused_stops())
 
     st.markdown("---")
-    st.markdown("### Routes with No Stops (Query 13)")
-    routes_no_stops = get_routes_without_stops()
-    if routes_no_stops:
-        st.error("These routes have no stops defined:")
-        st.table(routes_no_stops)
-    else:
-        st.success("Every route has at least one stop.")
+    st.subheader("Routes Without Stops")
+    st.table(get_routes_without_stops())
 
     st.markdown("---")
-    st.markdown("### How Many Routes Serve Each Stop (Query 14)")
+    st.subheader("Routes Serving Each Stop")
     st.table(get_routes_serving_each_stop())
 
     st.markdown("---")
-    st.markdown("### All Times at a Specific Stop (Query 15)")
-    stop_key2 = st.number_input("Stop ID for Times", min_value=1, step=1, key="stop_for_times")
-    if st.button("Show Times at Stop"):
-        times_at_stop = get_times_at_stop(stop_key2)
-        if times_at_stop:
-            st.table(times_at_stop)
-        else:
-            st.info("No times found for that stop.")
+    st.subheader("Times at a Stop")
+    stop_sel2 = st.selectbox("Select stop:", list(stop_dict.keys()), key="stop_time")
+    sk2 = stop_dict[stop_sel2]
+    st.table(get_times_at_stop(sk2))
 
-elif menu == "View Drivers":
-    st.subheader("Drivers and Their Routes (Existing + Query 17/19 style)")
+
+# ----------------------------------
+# TRIP PLANNER (FIXED VERSION)
+# ----------------------------------
+elif menu == "Trip Planner":
+    st.subheader("Trip Planner")
+
+    stops = get_all_stops()
+    stop_dict = {f"{s[0]} — {s[1]}": s[0] for s in stops}
+    reverse_stop_dict = {s[0]: s[1] for s in stops}
+
+    start_label = st.selectbox("Starting Stop:", list(stop_dict.keys()))
+    end_label = st.selectbox("Destination Stop:", list(stop_dict.keys()))
+
+    start_key = stop_dict[start_label]
+    end_key = stop_dict[end_label]
+
+    def parse_time(tstr):
+        try:
+            return datetime.strptime(tstr, "%H:%M").time()
+        except:
+            return None  # REQ or invalid
+
+    def next_bus_time(bus_times):
+        now = datetime.now().time()
+        # Convert all to times, skip invalid
+        valid_times = [(t, parse_time(t)) for t in bus_times if t != "REQ"]
+        if not valid_times:
+            return None
+        future_times = [(t, tt) for t, tt in valid_times if tt >= now]
+        if future_times:
+            return min(future_times, key=lambda x: x[1])
+        else:
+            # all earlier than now, pick earliest next day
+            return min(valid_times, key=lambda x: x[1])
+
+    if st.button("Plan Trip"):
+        st.markdown("### 🚏 Trip Results")
+
+        # Check for direct routes
+        direct_routes = conn.execute("""
+            SELECT DISTINCT r.route_key, r.route_name
+            FROM route r
+            JOIN route_stop rs1 ON r.route_key = rs1.route_key
+            JOIN route_stop rs2 ON r.route_key = rs2.route_key
+            WHERE rs1.stop_key = ? AND rs2.stop_key = ?
+        """, (start_key, end_key)).fetchall()
+
+        if direct_routes:
+            rkey = direct_routes[0][0]
+            rname = direct_routes[0][1]
+            # Get all times for this route at start stop
+            start_times = [row[0] for row in conn.execute("""
+                SELECT time FROM route_stop
+                WHERE route_key=? AND stop_key=?
+            """, (rkey, start_key)).fetchall()]
+            next_bus = next_bus_time(start_times)
+            if next_bus:
+                st.success(f"Direct route found: **Route {rkey} — {rname}**")
+                st.write(f"Next departure from {reverse_stop_dict[start_key]} at **{next_bus[0]}**")
+            else:
+                st.warning("Direct route exists but no upcoming buses found.")
+        else:
+            st.info("No direct route — planning transfer via UTC...")
+            # Find UTC stop
+            utc_row = conn.execute("SELECT stop_key FROM stop WHERE stop_name LIKE '%UTC%'").fetchone()
+            if utc_row is None:
+                st.error("UTC stop not found in database!")
+            else:
+                utc_key = utc_row[0]
+                # Next bus from start → UTC
+                start_to_utc = conn.execute("""
+                    SELECT r.route_key, r.route_name, rs.time
+                    FROM route r
+                    JOIN route_stop rs ON r.route_key = rs.route_key
+                    WHERE rs.stop_key=?
+                """, (utc_key,)).fetchall()
+                # Filter by next time after now
+                start_times = [row[2] for row in start_to_utc]
+                next_start_bus = next_bus_time(start_times)
+                # Next bus from UTC → end
+                utc_to_end = conn.execute("""
+                    SELECT r.route_key, r.route_name, rs.time
+                    FROM route r
+                    JOIN route_stop rs ON r.route_key = rs.route_key
+                    WHERE rs.stop_key=?
+                """, (end_key,)).fetchall()
+                end_times = [row[2] for row in utc_to_end]
+                next_end_bus = next_bus_time(end_times)
+
+                st.success(f"Trip requires a transfer at UTC.")
+                if next_start_bus:
+                    st.write(f"Take Route {next_start_bus[0]} from {reverse_stop_dict[start_key]} at **{next_start_bus[0]}** towards UTC")
+                else:
+                    st.warning("No upcoming buses from start to UTC found.")
+                if next_end_bus:
+                    st.write(f"Then take Route {next_end_bus[0]} from UTC to {reverse_stop_dict[end_key]}")
+                else:
+                    st.warning("No upcoming buses from UTC to destination found.")
+
+elif menu == "Current Bus Location":
+    st.subheader("Current Bus Locations")
+
+    locations = get_current_bus_locations()
+    st.table(locations)
+
+# ----------------------------------
+# DRIVERS PAGE
+# ----------------------------------
+elif menu == "Drivers":
+    st.subheader("Drivers & Their Route Assignments")
     drivers = get_all_drivers()
     for dk, name in drivers:
-        routes = conn.execute(
-            """
+        routes = conn.execute("""
             SELECT r.route_name
             FROM route r
             JOIN driver_route dr ON r.route_key = dr.route_key
             WHERE dr.driver_key = ?
-            """,
-            (dk,),
-        ).fetchall()
+        """, (dk,)).fetchall()
         route_list = ", ".join(r[0] for r in routes) if routes else "No routes assigned"
-        st.write(f"{name} (ID {dk}): {route_list}")
+        st.write(f"**{name} (ID {dk})** — {route_list}")
 
+
+# ----------------------------------
+# DRIVER ANALYTICS
+# ----------------------------------
 elif menu == "Driver Analytics":
-    st.subheader("Driver Analytics")
-
-    st.markdown("### All Driver–Route Assignments (Query 17)")
+    st.subheader("Driver–Route Assignments")
     st.table(get_all_driver_route_assignments())
 
     st.markdown("---")
-    st.markdown("### Drivers with No Routes (Query 18)")
-    dr_no_routes = get_drivers_without_routes()
-    if dr_no_routes:
-        st.warning("These drivers have no route assignments:")
-        st.table(dr_no_routes)
-    else:
-        st.success("Every driver has at least one route assignment.")
+    st.subheader("Drivers With No Routes")
+    st.table(get_drivers_without_routes())
 
     st.markdown("---")
-    st.markdown("### Route → Driver Assignments (Query 19)")
+    st.subheader("Route → Driver Assignments")
     st.table(get_route_driver_assignments())
 
     st.markdown("---")
-    st.markdown("### Routes a Driver Has Reviews For (Query 20)")
-    driver_key_for_routes = st.number_input(
-        "Driver ID to see routes with reviews",
-        min_value=1,
-        step=1,
-        key="driver_for_routes",
-    )
-    if st.button("Show Routes with Reviews for Driver"):
-        routes_for_driver = get_routes_with_reviews_for_driver(driver_key_for_routes)
-        if routes_for_driver:
-            st.table(routes_for_driver)
-        else:
-            st.info("No reviews found for that driver.")
+    st.subheader("Routes a Driver Has Reviews For")
+    all_drivers = get_all_drivers()
+    driver_dict = {f"{d[0]} — {d[1]}": d[0] for d in all_drivers}
+    sel = st.selectbox("Choose a driver:", list(driver_dict.keys()))
+    dk = driver_dict[sel]
+    st.table(get_routes_with_reviews_for_driver(dk))
 
     st.markdown("---")
-    st.markdown("### Driver with Highest Average Score (Query 21)")
-    best_driver = get_best_driver_by_avg_score()
-    if best_driver:
-        st.success(
-            f"Best driver: ID {best_driver[0]} - {best_driver[1]} "
-            f"(avg score: {best_driver[2]:.2f})"
-        )
-    else:
-        st.info("No reviews yet to compute averages.")
+    st.subheader("Best Driver by Average Score")
+    st.table([get_best_driver_by_avg_score()])
 
     st.markdown("---")
-    st.markdown("### Drivers with No Reviews (Query 24)")
-    no_reviews = get_drivers_with_no_reviews()
-    if no_reviews:
-        st.warning("These drivers have no reviews yet:")
-        st.table(no_reviews)
-    else:
-        st.success("Every driver has at least one review.")
+    st.subheader("Drivers With No Reviews")
+    st.table(get_drivers_with_no_reviews())
 
     st.markdown("---")
-    st.markdown("### Drivers with Most 5-Star Reviews (Query 28)")
+    st.subheader("Drivers with Most 5-Star Reviews")
     st.table(get_drivers_with_most_5star())
 
+
+# ----------------------------------
+# LEAVE REVIEW
+# ----------------------------------
 elif menu == "Leave Review":
-    st.subheader("Leave a Review for a Driver on a Route")
-    route_key = st.number_input("Route ID", min_value=1, step=1)
-    driver_key = st.number_input("Driver ID", min_value=1, step=1)
-    review_text = st.text_area("Review Text")
-    score = st.slider("Score (1-5)", 1, 5)
-    if st.button("Submit Review"):
-        if not review_text.strip():
-            st.error("Review text cannot be empty.")
-        else:
-            review_id = create_review(route_key, driver_key, review_text, score)
-            st.success(f"Review added with ID {review_id}")
+    st.subheader("Submit a Review")
 
+    routes = get_all_routes()
+    route_dict = {f"{r[0]} — {r[1]}": r[0] for r in routes}
+    route_label = st.selectbox("Route:", list(route_dict.keys()))
+    route_key = route_dict[route_label]
+
+    drivers = get_all_drivers()
+    driver_dict = {f"{d[0]} — {d[1]}": d[0] for d in drivers}
+    driver_label = st.selectbox("Driver:", list(driver_dict.keys()))
+    driver_key = driver_dict[driver_label]
+
+    text = st.text_area("Review Text")
+    score = st.slider("Score", 1, 5)
+
+    if st.button("Submit"):
+        create_review(route_key, driver_key, text, score)
+        st.success("Review submitted!")
+
+
+# ----------------------------------
+# VIEW REVIEWS
+# ----------------------------------
 elif menu == "View Reviews":
-    st.subheader("View Reviews for a Route")
-    route_key = st.number_input("Route ID", min_value=1, step=1, key="route_for_reviews")
-    if st.button("Show Reviews"):
-        reviews = get_reviews_for_route(route_key)
-        if reviews:
-            st.table(reviews)
-        else:
-            st.warning("No reviews for this route.")
+    st.subheader("Reviews for a Route")
 
+    route_dict = {f"{r[0]} — {r[1]}": r[0] for r in get_all_routes()}
+    label = st.selectbox("Choose a route:", list(route_dict.keys()))
+    route_key = route_dict[label]
+
+    st.table(get_reviews_for_route(route_key))
+
+
+# ----------------------------------
+# REVIEW ANALYTICS
+# ----------------------------------
 elif menu == "Review Analytics":
-    st.subheader("Review Analytics")
-
-    st.markdown("### Low-Score Reviews for a Route (Query 22)")
-    route_key_low = st.number_input(
-        "Route ID for low-score reviews",
-        min_value=1,
-        step=1,
-        key="route_low_reviews",
-    )
-    threshold = st.slider("Score threshold (≤)", 1, 5, 2)
-    if st.button("Show Low-Score Reviews"):
-        low_reviews = get_low_score_reviews_for_route(route_key_low, threshold)
-        if low_reviews:
-            st.table(low_reviews)
-        else:
-            st.info("No reviews at or below that threshold for this route.")
+    st.subheader("Low Score Reviews")
+    route_dict = {f"{r[0]} — {r[1]}": r[0] for r in get_all_routes()}
+    rlabel = st.selectbox("Select route:", list(route_dict.keys()))
+    route_key = route_dict[rlabel]
+    threshold = st.slider("Score threshold", 1, 5, 2)
+    st.table(get_low_score_reviews_for_route(route_key, threshold))
 
     st.markdown("---")
-    st.markdown("### Review Counts per Route (Query 23)")
+    st.subheader("Review Counts")
     st.table(count_reviews_per_route())
 
     st.markdown("---")
-    st.markdown("### Routes with Average Score Below 3 (Query 25)")
-    poor_routes = get_poor_routes(avg_threshold=3)
-    if poor_routes:
-        st.warning("Routes with average score below 3:")
-        st.table(poor_routes)
-    else:
-        st.success("No routes are below the average score threshold.")
+    st.subheader("Poor Routes")
+    st.table(get_poor_routes(3))
 
     st.markdown("---")
-    st.markdown("### Best Review Per Route (Query 26)")
+    st.subheader("Best Review per Route")
     st.table(get_best_review_per_route())
 
     st.markdown("---")
-    st.markdown("### Worst 5 Reviews Systemwide (Query 27)")
-    limit = st.slider("Number of worst reviews to show", 1, 20, 5)
+    st.subheader("Worst Reviews")
+    limit = st.slider("How many?", 1, 20, 5)
     st.table(get_worst_reviews(limit))
 
+
+# ----------------------------------
+# ADMIN: INSERT ROUTE STOP
+# ----------------------------------
 elif menu == "Admin: Insert Route Stop":
-    st.subheader("Insert a New Route_Stop Time (Query 16)")
+    st.subheader("Insert Route Stop")
 
-    route_key = st.number_input("Route ID", min_value=1, step=1, key="insert_route_key")
-    stop_key = st.number_input("Stop ID", min_value=1, step=1, key="insert_stop_key")
-    time_str = st.text_input("Time (HH:MM or 'REQ')", value="08:00")
+    routes = get_all_routes()
+    route_dict = {f"{r[0]} — {r[1]}": r[0] for r in routes}
+    route_sel = st.selectbox("Choose Route:", list(route_dict.keys()))
+    route_key = route_dict[route_sel]
 
-    if st.button("Insert Route_Stop"):
-        if not time_str.strip():
-            st.error("Time cannot be empty.")
-        else:
-            inserted = insert_route_stop(route_key, stop_key, time_str.strip())
-            if inserted:
-                st.success("New route_stop record inserted successfully.")
-            else:
-                st.error("Insert failed for some reason.")
+    stops = get_all_stops()
+    stop_dict = {f"{s[0]} — {s[1]}": s[0] for s in stops}
+    stop_sel = st.selectbox("Choose Stop:", list(stop_dict.keys()))
+    stop_key = stop_dict[stop_sel]
+
+    time_str = st.text_input("Time (HH:MM or REQ)")
+
+    if st.button("Insert"):
+        insert_route_stop(route_key, stop_key, time_str)
+        st.success("Inserted!")
